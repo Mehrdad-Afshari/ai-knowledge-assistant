@@ -6,6 +6,7 @@ import numpy as np
 
 from app.models.chunk import DocumentChunk
 from app.models.embedding import EmbeddedChunk
+from app.models.library import IndexedDocument
 
 
 class FAISSVectorStore:
@@ -140,6 +141,45 @@ class FAISSVectorStore:
             )
 
         return results
+
+    def list_documents(self) -> list[IndexedDocument]:
+        grouped: dict[str, list[DocumentChunk]] = {}
+
+        for chunk in self.chunks:
+            grouped.setdefault(
+                chunk.document_id,
+                [],
+            ).append(chunk)
+
+        documents: list[IndexedDocument] = []
+
+        for document_id, chunks in grouped.items():
+            first_chunk = chunks[0]
+            page_numbers = {
+                chunk.page_number
+                for chunk in chunks
+                if chunk.page_number is not None
+            }
+
+            documents.append(
+                IndexedDocument(
+                    document_id=document_id,
+                    filename=first_chunk.filename,
+                    file_type=first_chunk.file_type,
+                    chunk_count=len(chunks),
+                    page_count=(
+                        max(page_numbers)
+                        if page_numbers
+                        else 0
+                    ),
+                )
+            )
+
+        documents.sort(
+            key=lambda document: document.filename.lower()
+        )
+
+        return documents
 
     def remove_document(self, document_id: str) -> int:
         positions_to_remove = {
@@ -301,6 +341,15 @@ class FAISSVectorStore:
     @property
     def size(self) -> int:
         return self.index.ntotal
+
+    @property
+    def document_count(self) -> int:
+        return len(
+            {
+                chunk.document_id
+                for chunk in self.chunks
+            }
+        )
 
     @property
     def is_persisted(self) -> bool:
