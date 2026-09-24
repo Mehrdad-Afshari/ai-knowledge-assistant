@@ -12,7 +12,7 @@ app = FastAPI(
         "Backend API for a Retrieval-Augmented Generation "
         "knowledge assistant."
     ),
-    version="0.7.0",
+    version="0.8.0",
 )
 
 

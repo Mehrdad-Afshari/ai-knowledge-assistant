@@ -9,6 +9,34 @@ export type UploadResponse = {
   status: string;
 };
 
+export type IndexedDocument = {
+  document_id: string;
+  filename: string;
+  file_type: string;
+  chunk_count: number;
+  page_count: number;
+};
+
+export type DocumentListResponse = {
+  documents: IndexedDocument[];
+  document_count: number;
+  indexed_vectors: number;
+};
+
+export type DeleteDocumentResponse = {
+  document_id: string;
+  removed_chunks: number;
+  indexed_vectors: number;
+  status: string;
+};
+
+export type KnowledgeBaseStats = {
+  document_count: number;
+  indexed_vectors: number;
+  embedding_dimension: number;
+  persisted: boolean;
+};
+
 export type Source = {
   chunk_id: string;
   document_id: string;

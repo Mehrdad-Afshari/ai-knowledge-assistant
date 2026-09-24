@@ -3,11 +3,11 @@
 import { useState } from "react";
 
 import { ChatPanel } from "@/components/chat-panel";
+import { DocumentLibrary } from "@/components/document-library";
 import { UploadPanel } from "@/components/upload-panel";
-import type { UploadResponse } from "@/lib/types";
 
 export default function Home() {
-  const [uploads, setUploads] = useState<UploadResponse[]>([]);
+  const [libraryRefreshKey, setLibraryRefreshKey] = useState(0);
 
   return (
     <main className="app-shell">
@@ -31,50 +31,21 @@ export default function Home() {
         <p className="eyebrow">Local retrieval-augmented generation</p>
         <h2>Turn your documents into a searchable AI knowledge base.</h2>
         <p>
-          Upload documents, retrieve semantically relevant context, and stream grounded
-          answers with visible source metadata — all using a local, API-free AI stack.
+          Upload documents, manage a persistent vector library, retrieve semantically
+          relevant context, and stream grounded answers with visible source metadata —
+          all using a local, API-free AI stack.
         </p>
       </section>
 
       <div className="workspace-grid">
         <aside className="sidebar-stack">
           <UploadPanel
-            onUploaded={(result) =>
-              setUploads((current) => [result, ...current].slice(0, 5))
+            onUploaded={() =>
+              setLibraryRefreshKey((current) => current + 1)
             }
           />
 
-          <section className="panel-card">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Session</p>
-                <h2>Indexed documents</h2>
-              </div>
-              <span className="status-pill">{uploads.length}</span>
-            </div>
-
-            {uploads.length > 0 ? (
-              <div className="document-list">
-                {uploads.map((upload) => (
-                  <article className="document-item" key={upload.document_id}>
-                    <div className="document-icon">{upload.file_type.toUpperCase()}</div>
-                    <div>
-                      <strong>{upload.filename}</strong>
-                      <span>
-                        {upload.chunk_count} chunks · {upload.page_count || "Text"}{" "}
-                        {upload.page_count ? "pages" : "document"}
-                      </span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="muted-copy">
-                Uploads from this browser session will appear here. Persisted FAISS data
-                remains available after backend restarts.
-              </p>
-            )}
-          </section>
+          <DocumentLibrary refreshKey={libraryRefreshKey} />
 
           <section className="stack-note">
             <span className="status-dot" />
@@ -89,8 +60,8 @@ export default function Home() {
       </div>
 
       <footer className="app-footer">
-        <span>RAG · semantic retrieval · streaming · source grounding</span>
-        <span>v0.7 frontend</span>
+        <span>RAG · semantic retrieval · persistence · document management · streaming</span>
+        <span>v0.8 knowledge base management</span>
       </footer>
     </main>
   );
