@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import faiss
 import numpy as np
 
@@ -6,14 +9,27 @@ from app.models.embedding import EmbeddedChunk
 
 
 class FAISSVectorStore:
-    """In-memory FAISS vector store for semantic similarity search."""
+    """Persistent FAISS vector store for semantic similarity search."""
 
-    def __init__(self, dimension: int = 768):
+    STORAGE_VERSION = 1
+
+    def __init__(
+        self,
+        dimension: int = 768,
+        storage_dir: Path | None = None,
+    ):
         self.dimension = dimension
-        self.index = faiss.IndexFlatIP(dimension)
 
+        backend_dir = Path(__file__).resolve().parents[2]
+        self.storage_dir = storage_dir or backend_dir / "data" / "index"
+        self.index_path = self.storage_dir / "index.faiss"
+        self.metadata_path = self.storage_dir / "chunks.json"
+
+        self.index = faiss.IndexFlatIP(dimension)
         self.chunks: list[DocumentChunk] = []
         self.chunk_id_to_position: dict[str, int] = {}
+
+        self.load()
 
     def add_chunks(
         self,
@@ -27,6 +43,17 @@ class FAISSVectorStore:
             raise ValueError(
                 "The number of chunks and embeddings must match."
             )
+
+        for chunk, embedding in zip(chunks, embeddings):
+            if chunk.chunk_id != embedding.chunk_id:
+                raise ValueError(
+                    "Chunk and embedding IDs must match."
+                )
+
+            if chunk.chunk_id in self.chunk_id_to_position:
+                raise ValueError(
+                    f"Chunk already exists: {chunk.chunk_id}"
+                )
 
         vectors = np.array(
             [embedding.vector for embedding in embeddings],
@@ -47,14 +74,14 @@ class FAISSVectorStore:
         faiss.normalize_L2(vectors)
 
         start_position = len(self.chunks)
-
         self.index.add(vectors)
 
         for offset, chunk in enumerate(chunks):
             position = start_position + offset
-
             self.chunks.append(chunk)
             self.chunk_id_to_position[chunk.chunk_id] = position
+
+        self.save()
 
     def search(
         self,
@@ -115,27 +142,26 @@ class FAISSVectorStore:
         return results
 
     def remove_document(self, document_id: str) -> int:
-        positions = [
+        positions_to_remove = {
             index
             for index, chunk in enumerate(self.chunks)
             if chunk.document_id == document_id
-        ]
+        }
 
-        if not positions:
+        if not positions_to_remove:
             return 0
 
         keep_chunks = [
             chunk
             for index, chunk in enumerate(self.chunks)
-            if index not in positions
+            if index not in positions_to_remove
         ]
 
-        keep_embeddings = []
-
-        for index in range(self.index.ntotal):
-            if index not in positions:
-                vector = self.index.reconstruct(index)
-                keep_embeddings.append(vector)
+        keep_embeddings = [
+            self.index.reconstruct(index)
+            for index in range(self.index.ntotal)
+            if index not in positions_to_remove
+        ]
 
         self.index = faiss.IndexFlatIP(self.dimension)
 
@@ -147,19 +173,138 @@ class FAISSVectorStore:
             self.index.add(vectors)
 
         self.chunks = keep_chunks
+        self._rebuild_chunk_positions()
+        self.save()
 
+        return len(positions_to_remove)
+
+    def save(self) -> None:
+        self.storage_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        temporary_index_path = self.index_path.with_suffix(
+            ".faiss.tmp"
+        )
+        temporary_metadata_path = self.metadata_path.with_suffix(
+            ".json.tmp"
+        )
+
+        faiss.write_index(
+            self.index,
+            str(temporary_index_path),
+        )
+
+        metadata = {
+            "version": self.STORAGE_VERSION,
+            "dimension": self.dimension,
+            "chunks": [
+                chunk.model_dump()
+                for chunk in self.chunks
+            ],
+        }
+
+        temporary_metadata_path.write_text(
+            json.dumps(
+                metadata,
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        temporary_index_path.replace(
+            self.index_path
+        )
+        temporary_metadata_path.replace(
+            self.metadata_path
+        )
+
+    def load(self) -> None:
+        index_exists = self.index_path.exists()
+        metadata_exists = self.metadata_path.exists()
+
+        if not index_exists and not metadata_exists:
+            return
+
+        if index_exists != metadata_exists:
+            raise RuntimeError(
+                "FAISS persistence is incomplete. "
+                "Both index.faiss and chunks.json are required."
+            )
+
+        loaded_index = faiss.read_index(
+            str(self.index_path)
+        )
+
+        metadata = json.loads(
+            self.metadata_path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        stored_version = metadata.get("version")
+
+        if stored_version != self.STORAGE_VERSION:
+            raise RuntimeError(
+                "Unsupported vector store persistence version: "
+                f"{stored_version}."
+            )
+
+        stored_dimension = metadata.get("dimension")
+
+        if stored_dimension != self.dimension:
+            raise RuntimeError(
+                f"Stored embedding dimension is {stored_dimension}, "
+                f"but the application expects {self.dimension}."
+            )
+
+        if loaded_index.d != self.dimension:
+            raise RuntimeError(
+                f"Stored FAISS index dimension is {loaded_index.d}, "
+                f"but the application expects {self.dimension}."
+            )
+
+        chunks = [
+            DocumentChunk.model_validate(chunk_data)
+            for chunk_data in metadata.get("chunks", [])
+        ]
+
+        if loaded_index.ntotal != len(chunks):
+            raise RuntimeError(
+                "FAISS index and chunk metadata are inconsistent."
+            )
+
+        self.index = loaded_index
+        self.chunks = chunks
+        self._rebuild_chunk_positions()
+
+    def clear(self) -> None:
+        self.index = faiss.IndexFlatIP(self.dimension)
+        self.chunks.clear()
+        self.chunk_id_to_position.clear()
+
+        self.index_path.unlink(
+            missing_ok=True
+        )
+        self.metadata_path.unlink(
+            missing_ok=True
+        )
+
+    def _rebuild_chunk_positions(self) -> None:
         self.chunk_id_to_position = {
             chunk.chunk_id: index
             for index, chunk in enumerate(self.chunks)
         }
 
-        return len(positions)
-
-    def clear(self) -> None:
-        self.index.reset()
-        self.chunks.clear()
-        self.chunk_id_to_position.clear()
-
     @property
     def size(self) -> int:
         return self.index.ntotal
+
+    @property
+    def is_persisted(self) -> bool:
+        return (
+            self.index_path.exists()
+            and self.metadata_path.exists()
+        )
