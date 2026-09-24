@@ -74,9 +74,7 @@ async def upload_document(
             detail="Filename is required.",
         )
 
-    extension = Path(
-        file.filename
-    ).suffix.lower()
+    extension = Path(file.filename).suffix.lower()
 
     if extension not in SUPPORTED_EXTENSIONS:
         raise HTTPException(
@@ -106,6 +104,7 @@ async def upload_document(
                 indexing_service.index_document(
                     temporary_file_path,
                     document_id=document_id,
+                    original_filename=file.filename,
                 )
             )
         finally:
