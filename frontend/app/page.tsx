@@ -61,7 +61,7 @@ export default function Home() {
 
       <footer className="app-footer">
         <span>RAG · semantic retrieval · persistence · document management · streaming</span>
-        <span>v0.8 knowledge base management</span>
+        <span>v1.0 portfolio release</span>
       </footer>
     </main>
   );
