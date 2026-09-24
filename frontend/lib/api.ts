@@ -1,4 +1,10 @@
-import type { StreamEvent, UploadResponse } from "./types";
+import type {
+  DeleteDocumentResponse,
+  DocumentListResponse,
+  KnowledgeBaseStats,
+  StreamEvent,
+  UploadResponse,
+} from "./types";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -15,6 +21,45 @@ export async function uploadDocument(file: File): Promise<UploadResponse> {
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     throw new Error(payload?.detail ?? "Document upload failed.");
+  }
+
+  return response.json();
+}
+
+export async function getDocuments(): Promise<DocumentListResponse> {
+  const response = await fetch(`${API_BASE_URL}/documents`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to load indexed documents.");
+  }
+
+  return response.json();
+}
+
+export async function getKnowledgeBaseStats(): Promise<KnowledgeBaseStats> {
+  const response = await fetch(`${API_BASE_URL}/documents/stats`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to load knowledge base stats.");
+  }
+
+  return response.json();
+}
+
+export async function deleteDocument(
+  documentId: string,
+): Promise<DeleteDocumentResponse> {
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.detail ?? "Document deletion failed.");
   }
 
   return response.json();
