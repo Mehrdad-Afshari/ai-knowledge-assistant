@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
+from app.core.config import settings
 from app.models.chat import ChatRequest
 from app.models.library import (
     DeleteDocumentResponse,
@@ -95,6 +96,23 @@ async def upload_document(
     try:
         file_content = await file.read()
 
+        max_upload_bytes = settings.max_upload_mb * 1024 * 1024
+
+        if len(file_content) > max_upload_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "File is too large. "
+                    f"Maximum upload size is {settings.max_upload_mb} MB."
+                ),
+            )
+
+        if not file_content:
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is empty.",
+            )
+
         with NamedTemporaryFile(
             suffix=extension,
             delete=False,
@@ -116,6 +134,9 @@ async def upload_document(
             temporary_file_path.unlink(
                 missing_ok=True
             )
+
+    except HTTPException:
+        raise
 
     except ValueError as exc:
         raise HTTPException(
