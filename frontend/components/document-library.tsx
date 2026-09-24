@@ -100,9 +100,13 @@ export function DocumentLibrary({ refreshKey }: DocumentLibraryProps) {
       </div>
 
       {stats ? (
-        <div className="library-stats">
-          <span>{stats.embedding_dimension}D embeddings</span>
-          <span>{stats.persisted ? "Persisted" : "In memory"}</span>
+        <div className="mb-4 flex flex-wrap gap-2 text-xs text-slate-400">
+          <span className="rounded-full border border-white/10 px-2.5 py-1">
+            {stats.embedding_dimension}D embeddings
+          </span>
+          <span className="rounded-full border border-white/10 px-2.5 py-1">
+            {stats.persisted ? "Persisted" : "In memory"}
+          </span>
         </div>
       ) : null}
 
@@ -111,11 +115,13 @@ export function DocumentLibrary({ refreshKey }: DocumentLibraryProps) {
       ) : documents.length > 0 ? (
         <div className="document-list">
           {documents.map((document) => (
-            <article className="document-item document-manage-item" key={document.document_id}>
+            <article className="document-item" key={document.document_id}>
               <div className="document-icon">{document.file_type.toUpperCase()}</div>
 
-              <div className="document-manage-content">
-                <strong>{document.filename}</strong>
+              <div className="min-w-0 flex-1">
+                <strong className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                  {document.filename}
+                </strong>
                 <span>
                   {document.chunk_count} chunks · {document.page_count || "Text"}{" "}
                   {document.page_count ? "pages" : "document"}
@@ -123,7 +129,7 @@ export function DocumentLibrary({ refreshKey }: DocumentLibraryProps) {
               </div>
 
               <button
-                className="danger-button"
+                className="shrink-0 rounded-lg border border-red-300/20 bg-red-400/5 px-2.5 py-1.5 text-xs font-semibold text-red-300 transition hover:border-red-300/40 hover:bg-red-400/10 disabled:cursor-wait disabled:opacity-50"
                 type="button"
                 disabled={deletingId === document.document_id}
                 onClick={() => void handleDelete(document.document_id)}
