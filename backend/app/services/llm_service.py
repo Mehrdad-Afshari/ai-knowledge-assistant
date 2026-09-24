@@ -1,23 +1,18 @@
-import os
 from collections.abc import Iterator
 
 import ollama
+
+from app.core.config import settings
 
 
 class LLMService:
     """Generate answers using a local Ollama language model."""
 
-    MODEL_NAME = os.getenv(
-        "OLLAMA_LLM_MODEL",
-        "llama3.2",
-    )
+    MODEL_NAME = settings.ollama_llm_model
 
     def __init__(self):
         self.client = ollama.Client(
-            host=os.getenv(
-                "OLLAMA_HOST",
-                "http://localhost:11434",
-            )
+            host=settings.ollama_host,
         )
 
     def _build_messages(

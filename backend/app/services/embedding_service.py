@@ -1,7 +1,6 @@
-import os
-
 import ollama
 
+from app.core.config import settings
 from app.models.chunk import DocumentChunk
 from app.models.embedding import EmbeddedChunk
 
@@ -9,17 +8,11 @@ from app.models.embedding import EmbeddedChunk
 class EmbeddingService:
     """Generate local vector embeddings using Ollama."""
 
-    MODEL_NAME = os.getenv(
-        "OLLAMA_EMBEDDING_MODEL",
-        "nomic-embed-text",
-    )
+    MODEL_NAME = settings.ollama_embedding_model
 
     def __init__(self):
         self.client = ollama.Client(
-            host=os.getenv(
-                "OLLAMA_HOST",
-                "http://localhost:11434",
-            )
+            host=settings.ollama_host,
         )
 
     def embed_text(self, text: str) -> list[float]:
@@ -50,6 +43,11 @@ class EmbeddingService:
         )
 
         embeddings = response["embeddings"]
+
+        if len(embeddings) != len(chunks):
+            raise RuntimeError(
+                "Ollama returned an unexpected number of embeddings."
+            )
 
         return [
             EmbeddedChunk(
