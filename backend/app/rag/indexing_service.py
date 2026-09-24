@@ -25,11 +25,15 @@ class IndexingService:
         self,
         document_path,
         document_id: str,
+        original_filename: str | None = None,
     ) -> tuple[LoadedDocument, list[DocumentChunk]]:
         document = self.loader.load(
             document_path,
             document_id=document_id,
         )
+
+        if original_filename:
+            document.filename = original_filename
 
         chunks = self.chunker.chunk_document(document)
 
