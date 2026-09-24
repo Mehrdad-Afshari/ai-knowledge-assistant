@@ -7,6 +7,11 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.models.chat import ChatRequest
+from app.models.library import (
+    DeleteDocumentResponse,
+    DocumentListResponse,
+    KnowledgeBaseStats,
+)
 from app.models.search import SearchRequest
 from app.rag.indexing_service import IndexingService
 from app.rag.rag_service import RAGService
@@ -136,6 +141,40 @@ async def upload_document(
     }
 
 
+@router.get("", response_model=DocumentListResponse)
+async def list_documents():
+    documents = vector_store.list_documents()
+
+    return DocumentListResponse(
+        documents=documents,
+        document_count=len(documents),
+        indexed_vectors=vector_store.size,
+    )
+
+
+@router.delete(
+    "/{document_id}",
+    response_model=DeleteDocumentResponse,
+)
+async def delete_document(document_id: str):
+    removed_chunks = vector_store.remove_document(
+        document_id
+    )
+
+    if removed_chunks == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found.",
+        )
+
+    return DeleteDocumentResponse(
+        document_id=document_id,
+        removed_chunks=removed_chunks,
+        indexed_vectors=vector_store.size,
+        status="deleted",
+    )
+
+
 @router.post("/search")
 async def search_documents(
     request: SearchRequest,
@@ -253,8 +292,14 @@ async def stream_chat_with_documents(
     )
 
 
-@router.get("/stats")
+@router.get(
+    "/stats",
+    response_model=KnowledgeBaseStats,
+)
 async def document_stats():
-    return {
-        "indexed_vectors": vector_store.size,
-    }
+    return KnowledgeBaseStats(
+        document_count=vector_store.document_count,
+        indexed_vectors=vector_store.size,
+        embedding_dimension=vector_store.dimension,
+        persisted=vector_store.is_persisted,
+    )
